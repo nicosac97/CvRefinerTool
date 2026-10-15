@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<section>
+  <h2>Tailor CV</h2>
+  {% if cv %}
+  <p class="hint">Master CV <code>data/cv/{{ cv_name }}</code> is never modified. Tailored copies go to <code>data/cv/tailored/</code>.</p>
+  <table>
+    <thead><tr><th>Block</th><th>Section</th><th>Editable</th></tr></thead>
+    <tbody>
+      {% for block in cv.blocks %}
+      <tr><td>{{ block.label }}</td><td>{{ block.section }}</td><td>{{ "yes" if block.editable else "locked" }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="error">{{ cv_error }}</p>
+  {% endif %}
+</section>
+
+<section>
+  <h3>Shortlisted jobs</h3>
+  <p class="hint">Proposing edits takes up to a minute (writer model, then a grounding check per edit).</p>
+  <table>
+    <tbody>
+      {% for job in shortlisted %}
+      <tr>
+        <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a>{% if job.company %} · {{ job.company }}{% endif %}</td>
+        <td class="score">{% if job.score is not none %}{{ job.score | round | int }}{% endif %}</td>
+        <td><form method="post" action="/tailor/job/{{ job.id }}"><button {{ "disabled" if not cv }}>Propose edits</button></form></td>
+      </tr>
+      {% else %}
+      <tr><td class="hint">None. Shortlist a job from the Jobs tab.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if area_counts %}
+<section>
+  <h3>Job areas</h3>
+  <p class="hint">Tailor one CV version for a group of similar jobs. Uses the area's top 5 open jobs by score. Group jobs from a job's detail page.</p>
+  <table>
+    <tbody>
+      {% for area, count in area_counts.items() %}
+      <tr>
+        <td><a href="/jobs?area={{ area | urlencode }}">{{ area }}</a></td>
+        <td class="hint">{{ count }} open jobs</td>
+        <td><form method="post" action="/tailor/area"><input type="hidden" name="area" value="{{ area }}"><button {{ "disabled" if not cv or not count }}>Propose edits for area</button></form></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if sessions %}
+<section>
+  <h3>Previous tailorings</h3>
+  <ul>
+    {% for t in sessions %}
+    <li><a href="/tailor/{{ t.id }}">{{ "Area: " ~ t.area if t.area else job_titles.get(t.job_id, "Deleted job") }}</a>
+      <span class="hint">{{ t.created_at.strftime("%Y-%m-%d %H:%M") }} · {{ t.edits | length }} edits{% if t.applied_at %} · applied{% endif %}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

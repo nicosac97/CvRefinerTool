@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <p><a href="/jobs/{{ job.id }}">&larr; {{ job.title }}</a></p>
+  <h2>Cover letter · {{ job.title }}{% if job.company %} · {{ job.company }}{% endif %}</h2>
+  <p class="hint">
+    {{ language_name }} · written from {{ "tailored CV #" ~ letter.tailoring_id if letter.tailoring_id else "master CV" }}
+    · {{ letter.created_at.strftime("%Y-%m-%d %H:%M") }}
+  </p>
+  {% if letter.notes %}<p class="hint">Your notes: {{ letter.notes }}</p>{% endif %}
+  {% if letter.requirements %}
+  <h3>Requirements</h3>
+  <p class="row">
+    {% for item in letter.requirements %}<span class="badge {{ 'ok' if item in covered }}">{{ item }}</span>{% endfor %}
+  </p>
+  <p class="hint">Covered by kept paragraphs: {{ covered | length }} / {{ letter.requirements | length }}. A missing one is fine when your CV has no evidence for it.</p>
+  {% endif %}
+</section>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if letter.grounding_error %}<p class="error">Fact check: {{ letter.grounding_error }}</p>{% endif %}
+
+<form method="post" action="/letters/{{ letter.id }}">
+  {% for paragraph in letter.paragraphs %}
+  {% set index = loop.index0 %}
+  <section class="edit" id="p{{ index }}">
+    <div class="row">
+      <strong>{{ index + 1 }}. {{ paragraph.purpose }}</strong>
+      {% if paragraph.grounded is none %}<span class="badge warn">not checked</span>
+      {% elif paragraph.grounded >= grounded_ok %}<span class="badge ok">grounded {{ "%.0f%%" | format(paragraph.grounded * 100) }}</span>
+      {% elif paragraph.grounded >= grounded_warn %}<span class="badge warn">check facts {{ "%.0f%%" | format(paragraph.grounded * 100) }}</span>
+      {% else %}<span class="badge bad">possible fabrication {{ "%.0f%%" | format(paragraph.grounded * 100) }}</span>{% endif %}
+      <span class="push row">
+        <label class="inline"><input type="radio" name="decision_{{ index }}" value="kept" {{ "checked" if paragraph.status == "kept" }}> Keep</label>
+        <label class="inline"><input type="radio" name="decision_{{ index }}" value="dropped" {{ "checked" if paragraph.status != "kept" }}> Drop</label>
+      </span>
+    </div>
+    {% if paragraph.note %}<p class="hint warn-text">Writer: {{ paragraph.note }}</p>{% endif %}
+    <textarea name="text_{{ index }}" rows="{{ [3, (paragraph.final | length) // 90 + 2] | max }}">{{ paragraph.final }}</textarea>
+    {% if paragraph.requirements %}<p class="row">{% for item in paragraph.requirements %}<span class="badge">{{ item }}</span>{% endfor %}</p>{% endif %}
+    <div class="row">
+      <input name="instruction_{{ index }}" placeholder="Optional instruction, e.g. shorter, mention Kafka" size="40" maxlength="2000">
+      <button formaction="/letters/{{ letter.id }}/paragraph/{{ index }}" class="link">Regenerate this paragraph</button>
+    </div>
+  </section>
+  {% endfor %}
+  <section class="row">
+    <button>Save letter</button>
+    <span class="hint">Adds date, subject, greeting, sign-off and your name locally. Paragraphs flagged as possible fabrication (below {{ "%.0f%%" | format(grounded_warn * 100) }}) start as dropped; read "check facts" ones before sending. Regenerating keeps your edits to the other paragraphs.</span>
+  </section>
+</form>
+
+{% if saved_text %}
+<section>
+  <h3>Saved letter</h3>
+  <p class="hint">Saved {{ letter.saved_at.strftime("%Y-%m-%d %H:%M") }} to <code>{{ letter.output_path }}</code></p>
+  <pre class="description" id="letter-text">{{ saved_text }}</pre>
+  <p class="row">
+    <button type="button" id="copy-letter">Copy text</button>
+    <a href="/letters/{{ letter.id }}/file"><button type="button">Download .md</button></a>
+    <span class="hint" id="copy-status"></span>
+  </p>
+  <script>
+    document.getElementById("copy-letter").addEventListener("click", async () => {
+      const status = document.getElementById("copy-status");
+      try {
+        await navigator.clipboard.writeText(document.getElementById("letter-text").textContent);
+        status.textContent = "Copied";
+      } catch {
+        status.textContent = "Copy failed: select the text and copy it by hand";
+      }
+    });
+  </script>
+</section>
+{% endif %}
+{% endblock %}

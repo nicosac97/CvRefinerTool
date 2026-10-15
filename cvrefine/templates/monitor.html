@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block head %}{% if running %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<section>
+  <h2>Candidate profile</h2>
+  <p class="hint">Condensed summary sent with every job for scoring: years of experience, level, main stack, certifications, where you are based. Keep it under a page.</p>
+  <form method="post" action="/candidate">
+    <textarea name="summary" rows="8" placeholder="Cloud developer, 5 years. AWS, Terraform, Python, Kubernetes...">{{ candidate_summary }}</textarea>
+    <button>Save profile</button>
+  </form>
+  <form method="post" action="/candidate/from-cv"><button class="link">Replace with text extracted from CV (no contact details)</button></form>
+</section>
+
+<section>
+  <h2>Criteria profiles</h2>
+  {% for profile in profiles %}
+  <article class="card">
+    <div class="row">
+      <strong>{{ profile.name }}</strong>
+      <span class="badge">{{ profile.work_mode }}{% if profile.work_mode != "any" and profile.work_mode_strictness != "strict" %} ({{ profile.work_mode_strictness }}){% endif %}</span>
+      {% if profile.scan_interval_hours %}<span class="badge">every {{ profile.scan_interval_hours }}h</span>{% endif %}
+      <span class="push row">
+        {% if profile.id in running %}<span class="badge warn">scanning…</span>
+        {% else %}<form method="post" action="/profiles/{{ profile.id }}/scan"><button>Scan now</button></form>{% endif %}
+        <a href="/jobs?profile={{ profile.id }}">Jobs</a>
+        <a href="/monitor?edit={{ profile.id }}#profile-form">Edit</a>
+        <form method="post" action="/profiles/{{ profile.id }}/delete"><button class="link">Delete</button></form>
+      </span>
+    </div>
+    <dl>
+      {% if profile.keywords %}<dt>Keywords</dt><dd>{{ profile.keywords }}</dd>{% endif %}
+      {% if profile.locations %}<dt>Locations</dt><dd>{{ profile.locations }}</dd>{% endif %}
+      {% if profile.seniority %}<dt>Seniority</dt><dd>{{ profile.seniority }}</dd>{% endif %}
+      {% if profile.must_have %}<dt>Must have</dt><dd>{{ profile.must_have }}</dd>{% endif %}
+      {% if profile.nice_to_have %}<dt>Nice to have</dt><dd>{{ profile.nice_to_have }}</dd>{% endif %}
+      {% if profile.min_salary %}<dt>Min salary</dt><dd>{{ profile.min_salary }}</dd>{% endif %}
+      {% if profile.excluded_companies %}<dt>Excluded</dt><dd>{{ profile.excluded_companies }}</dd>{% endif %}
+      {% if profile.custom_criteria %}<dt>Custom</dt><dd>{{ profile.custom_list() | join("; ") }}</dd>{% endif %}
+      <dt>Sources</dt><dd>{{ profile.source_list() | join(", ") or "none" }}{% if "indeed" in profile.source_list() or "glassdoor" in profile.source_list() or "linkedin" in profile.source_list() %} · country {{ profile.country }}{% endif %} · max age {{ profile.max_age_days }}d</dd>
+    </dl>
+    {% for run in runs[profile.id] %}
+    <details class="run" {{ "open" if loop.first and run.finished_at }}>
+      <summary class="hint">
+        Scan {{ run.started_at.strftime("%Y-%m-%d %H:%M") }} UTC ·
+        {% if run.finished_at %}{{ run.stats.values() | sum(attribute="new") }} new, {{ run.scored }} scored{% if run.score_errors %}, {{ run.score_errors }} scoring errors{% endif %}{% else %}running{% endif %}
+        {% if run.error %} · <span class="warn-text">{{ run.error }}</span>{% endif %}
+      </summary>
+      <table>
+        <thead><tr><th>Source</th><th>Fetched</th><th>Matched</th><th>New</th><th>Duplicates</th><th>Filtered</th><th>Error</th></tr></thead>
+        <tbody>
+          {% for name, stat in run.stats.items() %}
+          <tr><td>{{ sources[name].label if name in sources else name }}</td><td>{{ stat.fetched }}</td><td>{{ stat.matched }}</td><td>{{ stat.new }}</td><td>{{ stat.duplicates }}</td><td>{{ stat.filtered }}</td><td class="hint">{{ stat.error }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    {% endfor %}
+  </article>
+  {% else %}
+  <p class="hint">No profiles yet.</p>
+  {% endfor %}
+
+  {% set p = editing %}
+  {% set selected = p.source_list() if p else default_sources %}
+  <h3 id="profile-form">{{ "Edit " ~ p.name if p else "New profile" }}</h3>
+  <form method="post" action="{{ '/profiles/' ~ p.id if p else '/profiles' }}" class="grid">
+    <label>Name <input name="name" required value="{{ p.name if p else '' }}" placeholder="Remote EU cloud engineer"></label>
+    <label>Work mode
+      <select name="work_mode">{% for mode in work_modes %}<option {{ "selected" if p and p.work_mode == mode }}>{{ mode }}</option>{% endfor %}</select>
+    </label>
+    <label>Penalty for other work modes
+      <select name="work_mode_strictness">
+        {% set labels = {"strict": "strict: score down to 20%", "soft": "soft: score down to 60%", "off": "off: show work mode only"} %}
+        {% for key in strictness_options %}<option value="{{ key }}" {{ "selected" if (p.work_mode_strictness if p else "strict") == key }}>{{ labels[key] }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Search keywords, comma separated (matched against job titles) <input name="keywords" value="{{ p.keywords if p else '' }}" placeholder="cloud engineer, devops, platform engineer, backend"></label>
+    <label>Locations <input name="locations" value="{{ p.locations if p else '' }}" placeholder="Italy, EU"></label>
+    <label>Seniority <input name="seniority" value="{{ p.seniority if p else '' }}" placeholder="mid, senior"></label>
+    <label>Min yearly salary (only filters jobs that state one) <input name="min_salary" inputmode="numeric" value="{{ p.min_salary or '' if p else '' }}" placeholder="50000"></label>
+    <label>Must-have stack <input name="must_have" value="{{ p.must_have if p else '' }}" placeholder="AWS, Kubernetes"></label>
+    <label>Nice-to-have stack <input name="nice_to_have" value="{{ p.nice_to_have if p else '' }}" placeholder="Terraform, Kafka"></label>
+    <label class="wide">Excluded companies <input name="excluded_companies" value="{{ p.excluded_companies if p else '' }}" placeholder="comma separated"></label>
+    <label class="wide">Custom criteria, one statement per line that should be true of a good job
+      <textarea name="custom_criteria" rows="3" placeholder="No security clearance required&#10;Permanent contract, not freelance">{{ p.custom_criteria if p else '' }}</textarea>
+    </label>
+    <fieldset class="wide">
+      <legend>Sources</legend>
+      {% for name, source in sources.items() %}
+      <label class="inline"><input type="checkbox" name="sources" value="{{ name }}" {{ "checked" if name in selected }}> {{ source.label }}</label>
+      {% if source.warning %}<p class="hint warn-text">{{ source.label }}: {{ source.warning }}</p>{% endif %}
+      {% endfor %}
+    </fieldset>
+    <label>Country for Indeed / Glassdoor / LinkedIn <input name="country" value="{{ p.country if p else 'italy' }}" placeholder="italy, germany, uk, netherlands"></label>
+    <label>Ignore jobs older than (days) <input name="max_age_days" inputmode="numeric" value="{{ p.max_age_days if p else 14 }}"></label>
+    <label>Scan automatically every (hours, 0 = manual only) <input name="scan_interval_hours" inputmode="numeric" value="{{ p.scan_interval_hours if p else 0 }}"></label>
+    <div class="row wide">
+      <button>{{ "Save changes" if p else "Add profile" }}</button>
+      {% if p %}<a href="/monitor">Cancel</a>{% endif %}
+    </div>
+  </form>
+  <p class="hint">Automatic scans run only while the app is running. Remote boards are fetched at most every 3–6 hours however often you scan; new matches are scored with Jev (about $0.0001 each).</p>
+</section>
+{% endblock %}

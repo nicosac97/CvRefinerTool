@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if not has_candidate %}<p class="error">Candidate profile is empty: fit scores will be meaningless. Fill it in under <a href="/monitor">Monitor</a>.</p>{% endif %}
+
+<section>
+  <details>
+    <summary><strong>Add job manually</strong> <span class="hint">paste a description or URL</span></summary>
+    <form method="post" action="/jobs/manual" class="grid">
+      <label>Title <input name="title"></label>
+      <label>Company <input name="company"></label>
+      <label>Location <input name="location"></label>
+      <label>Score against
+        <select name="profile_id">
+          <option value="">No profile (fit only)</option>
+          {% for item in profiles %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="wide">URL <input name="url" type="url" placeholder="https://..."></label>
+      <label class="wide">Description (leave empty to extract it from the URL)
+        <textarea name="description" rows="6"></textarea>
+      </label>
+      <button>Add and score</button>
+    </form>
+  </details>
+</section>
+
+<section>
+  <h2>Jobs</h2>
+  <form method="get" action="/jobs" class="filters">
+    <label>Status
+      <select name="status">
+        <option value="">Open</option>
+        {% for item in statuses %}<option value="{{ item }}" {{ "selected" if filters.status == item }}>{{ item | capitalize }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Profile
+      <select name="profile">
+        <option value="">All</option>
+        {% for item in profiles %}<option value="{{ item.id }}" {{ "selected" if filters.profile == item.id | string }}>{{ item.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Source
+      <select name="source">
+        <option value="">All</option>
+        {% for item in sources %}<option {{ "selected" if filters.source == item }}>{{ item }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Area
+      <select name="area">
+        <option value="">All</option>
+        {% for item in areas %}<option {{ "selected" if filters.area == item }}>{{ item }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Min score <input name="min_score" inputmode="numeric" value="{{ filters.min_score }}" size="4"></label>
+    <button>Filter</button>
+  </form>
+  <p class="hint">{{ total }} jobs{% if total > page_size %}, showing the top {{ page_size }}{% endif %}.</p>
+  <table>
+    <thead><tr><th>Score</th><th>Job</th><th>Company</th><th>Location</th><th>Source</th><th>Area</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td class="score">
+          {% if job.score is not none %}{{ job.score | round | int }}{% if job.uncertain %} <span class="badge warn" title="Low confidence on at least one question">?</span>{% endif %}
+          {% elif job.score_error %}<span class="badge warn" title="{{ job.score_error }}">error</span>
+          {% else %}<span class="badge">unscored</span>{% endif %}
+        </td>
+        <td><a href="/jobs/{{ job.id }}">{{ job.title }}</a>{% if job.profile_id %}<div class="hint">{{ profile_names.get(job.profile_id, "") }}</div>{% endif %}</td>
+        <td>{{ job.company }}</td>
+        <td>{{ job.location }}</td>
+        <td>{% if job.url %}<a href="{{ job.url }}" target="_blank" rel="noopener noreferrer">{{ job.source }}</a>{% else %}{{ job.source }}{% endif %}</td>
+        <td>{{ job.area }}</td>
+        <td>{{ job.status }}{% if job.feedback == 1 %} +{% elif job.feedback == -1 %} -{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="hint">Nothing here yet. Add a criteria profile under Monitor and click Scan now.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

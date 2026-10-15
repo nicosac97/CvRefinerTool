@@ -1,0 +1,37 @@
+<section>
+  <details {{ "open" if letters }}>
+    <summary><strong>Cover letter</strong> <span class="hint">optional, only if the application asks for one{% if letters %} · {{ letters | length }} written{% endif %}</span></summary>
+    {% if letters %}
+    <ul>
+      {% for letter in letters %}
+      <li><a href="/letters/{{ letter.id }}">{{ letter.created_at.strftime("%Y-%m-%d %H:%M") }}</a> · {{ languages.get(letter.language, letter.language) }}{% if letter_jobs | length > 1 %} · {{ job_titles_by_id.get(letter.job_id, "") }}{% endif %}{% if letter.saved_at %} · saved{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if letter_jobs %}
+    <form method="post" action="/letters" class="grid">
+      {% if letter_jobs | length > 1 %}
+      <label class="wide">Write to
+        <select name="job_id">{% for item in letter_jobs %}<option value="{{ item.id }}">{{ item.title }}{% if item.company %} · {{ item.company }}{% endif %}</option>{% endfor %}</select>
+      </label>
+      {% else %}
+      <input type="hidden" name="job_id" value="{{ letter_jobs[0].id }}">
+      {% endif %}
+      {% if letter_tailoring %}<input type="hidden" name="tailoring_id" value="{{ letter_tailoring.id }}">{% endif %}
+      <label>Language
+        <select name="language">
+          <option value="auto">Same as the posting</option>
+          {% for code, name in languages.items() %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="wide">Your notes (optional): true facts the CV does not say, e.g. why this company, availability, a referral
+        <textarea name="notes" rows="3" maxlength="2000" placeholder="I use their product at work; available from January; referred by ..."></textarea>
+      </label>
+      <div class="row wide">
+        <button>Write cover letter</button>
+        <span class="hint">Uses {{ "the tailored CV from tailoring #" ~ letter_tailoring.id if letter_tailoring else "your master CV" }}. One writer call plus a Jev fact check, about $0.02.</span>
+      </div>
+    </form>
+    {% endif %}
+  </details>
+</section>

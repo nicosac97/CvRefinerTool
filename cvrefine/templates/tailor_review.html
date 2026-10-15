@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <p><a href="/tailor">&larr; Tailor</a></p>
+  {% if t.area %}
+  <h2>Area: {{ t.area }}</h2>
+  {% else %}
+  <h2>{{ job.title if job else "Deleted job" }}{% if job and job.company %} · {{ job.company }}{% endif %}</h2>
+  {% endif %}
+  {% if t.requirements %}
+  <h3>Requirements</h3>
+  <ul>{% for item in t.requirements %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if t.keywords %}
+  <h3>Keywords</h3>
+  <p class="row">
+    {% for keyword in t.keywords %}
+    <span class="badge {{ 'ok' if keyword in coverage_before or (coverage_after and keyword in coverage_after) }}">{{ keyword }}</span>
+    {% endfor %}
+  </p>
+  <p class="hint">In master CV: {{ coverage_before | length }} / {{ t.keywords | length }}{% if coverage_after is not none %} · in tailored CV: {{ coverage_after | length }} / {{ t.keywords | length }}{% endif %}</p>
+  {% endif %}
+</section>
+
+{% if t.grounding_error %}<p class="error">Grounding check failed: {{ t.grounding_error }}</p>{% endif %}
+{% if t.dropped %}
+<section>
+  <h3>Discarded automatically</h3>
+  <ul class="hint">{% for reason in t.dropped %}<li>{{ reason }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if t.applied_at %}
+<section>
+  <h3>Output</h3>
+  <p class="hint">Applied {{ t.applied_at.strftime("%Y-%m-%d %H:%M") }} to <code>{{ t.output_dir }}</code></p>
+  <p class="row">
+    {% if tex_ready %}<a href="/tailor/{{ t.id }}/file/tex"><button type="button">Download .tex</button></a>{% endif %}
+    {% if pdf_ready %}<a href="/tailor/{{ t.id }}/file/pdf" target="_blank"><button type="button">Open PDF</button></a>{% endif %}
+  </p>
+  {% if t.render_error %}<pre class="error description">{{ t.render_error }}</pre>{% endif %}
+</section>
+{% endif %}
+
+<form method="post" action="/tailor/{{ t.id }}">
+  {% for edit in t.edits %}
+  {% set index = loop.index0 %}
+  <section class="edit">
+    <div class="row">
+      <strong>{{ edit.label }}</strong>
+      {% if edit.grounded is none %}<span class="badge warn">not checked</span>
+      {% elif edit.grounded >= grounded_ok %}<span class="badge ok">grounded {{ "%.0f%%" | format(edit.grounded * 100) }}</span>
+      {% elif edit.grounded >= grounded_warn %}<span class="badge warn">check facts {{ "%.0f%%" | format(edit.grounded * 100) }}</span>
+      {% else %}<span class="badge bad">possible fabrication {{ "%.0f%%" | format(edit.grounded * 100) }}</span>{% endif %}
+      <span class="push row">
+        <label class="inline"><input type="radio" name="decision_{{ index }}" value="accepted" {{ "checked" if edit.status == "accepted" }}> Accept</label>
+        <label class="inline"><input type="radio" name="decision_{{ index }}" value="rejected" {{ "checked" if edit.status != "accepted" }}> Reject</label>
+      </span>
+    </div>
+    {% if edit.rationale %}<p class="hint">{{ edit.rationale }}</p>{% endif %}
+    <div class="diff">
+      <div><div class="hint">Original</div><pre>{{ edit.original }}</pre></div>
+      <div><div class="hint">Proposed (editable, LaTeX)</div><textarea name="text_{{ index }}" rows="{{ [3, (edit.final | length) // 70 + 2] | max }}">{{ edit.final }}</textarea></div>
+    </div>
+    {% if edit.keywords %}<p class="row">{% for keyword in edit.keywords %}<span class="badge">{{ keyword }}</span>{% endfor %}</p>{% endif %}
+  </section>
+  {% else %}
+  <section><p class="hint">No edits proposed.</p></section>
+  {% endfor %}
+  {% if t.edits %}
+  <section class="row">
+    <button>Apply accepted edits</button>
+    <span class="hint">Writes a copy and compiles a PDF if a LaTeX engine is installed. Edits below {{ "%.0f%%" | format(grounded_ok * 100) }} grounding start as rejected.</span>
+  </section>
+  {% endif %}
+</form>
+
+{% include "_letter_form.html" %}
+{% endblock %}

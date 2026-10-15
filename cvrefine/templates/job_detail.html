@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <p><a href="/jobs">&larr; Jobs</a></p>
+  <h2>{{ job.title }}</h2>
+  <p class="hint">
+    {{ [job.company, job.location] | select | join(" · ") }}
+    {% if job.url %} · <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer">posting</a>{% endif %}
+    · {{ job.source }} · {{ job.status }}
+    {% if job.posted_at %} · posted {{ job.posted_at.strftime("%Y-%m-%d") }}{% endif %}
+    {% if job.salary_max %} · salary up to {{ "{:,.0f}".format(job.salary_max) }}{% endif %}
+  </p>
+  {% if attribution %}<p class="hint">{{ attribution }}{% if job.url %}: <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer">original posting</a>{% endif %}</p>{% endif %}
+  <form method="post" action="/jobs/{{ job.id }}/area" class="row">
+    <label class="inline">Area <input name="area" value="{{ job.area }}" list="areas" placeholder="e.g. AWS platform" size="24"></label>
+    <datalist id="areas">{% for area in areas %}<option value="{{ area }}">{% endfor %}</datalist>
+    <button>Set area</button>
+  </form>
+
+  <div class="row">
+    {% for status, label in [("shortlisted", "Shortlist"), ("dismissed", "Dismiss"), ("new", "Back to new")] %}
+    {% if job.status != status %}
+    <form method="post" action="/jobs/{{ job.id }}/status"><input type="hidden" name="status" value="{{ status }}"><button>{{ label }}</button></form>
+    {% endif %}
+    {% endfor %}
+    <form method="post" action="/jobs/{{ job.id }}/feedback"><input type="hidden" name="value" value="1"><button class="{{ 'on' if job.feedback == 1 }}">Good match</button></form>
+    <form method="post" action="/jobs/{{ job.id }}/feedback"><input type="hidden" name="value" value="-1"><button class="{{ 'on' if job.feedback == -1 }}">Bad match</button></form>
+    <form method="post" action="/jobs/{{ job.id }}/rescore" class="push"><button>Rescore</button></form>
+    <form method="post" action="/tailor/job/{{ job.id }}"><button>Tailor CV</button></form>
+  </div>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+</section>
+
+{% include "_letter_form.html" %}
+
+<section>
+  <h3>Score{% if profile %} against "{{ profile.name }}"{% endif %}</h3>
+  {% if job.score_error %}
+  <p class="error">Scoring failed: {{ job.score_error }}</p>
+  {% else %}
+  <p class="big">{{ job.score | round | int }} / 100 {% if job.uncertain %}<span class="badge warn">uncertain</span>{% endif %}</p>
+  <table>
+    <thead><tr><th>Question</th><th>Answer</th><th>Confidence</th><th>Effect on score</th></tr></thead>
+    <tbody>
+      {% for row in job.breakdown %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td>{{ row.answer }}</td>
+        <td>{% if row.confidence is not none %}{{ "%.0f%%" | format(row.confidence * 100) }}{% endif %}</td>
+        <td>{% if row.factor is not none %}&times; {{ "%.2f" | format(row.factor) }}{% elif loop.index <= 2 %}base{% else %}none (profile has no preference){% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">Good match / Bad match labels are stored to tune score thresholds later; they do not change this score.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h3>Description</h3>
+  <pre class="description">{{ job.description }}</pre>
+</section>
+{% endblock %}
