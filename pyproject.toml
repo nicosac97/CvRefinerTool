@@ -1,7 +1,7 @@
 [project]
 name = "cvrefine"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local tool to scan job boards, score matches with Jev, and tailor a LaTeX CV and cover letters"
 requires-python = ">=3.11"
 dependencies = [
     "apscheduler>=3.11.3",
