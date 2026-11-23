@@ -64,3 +64,5 @@ form.filters input, form.filters select { width: auto; }
 @media (max-width: 640px) { .diff { grid-template-columns: 1fr; } }
 pre.description { white-space: pre-wrap; font: inherit; margin: 0; max-height: 480px; overflow: auto; }
 @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+.ok { background: var(--ok-bg); color: var(--ok); padding: 8px 12px; border-radius: 6px; }
+textarea.source { font: 13px/1.45 ui-monospace, Consolas, monospace; min-height: 520px; white-space: pre; }

@@ -2,11 +2,12 @@
 
 Personal tool to search for jobs and tailor my CV when good matches come out.
 
-It runs locally as a small web app with three tabs:
+It runs locally as a small web app with four tabs:
 
 1. **Monitor**: save search criteria, scan job boards, and score every new posting against your profile.
 2. **Jobs**: browse ranked results, shortlist or dismiss them, group them into "areas", and label good or bad matches.
 3. **Tailor**: get proposed edits to your LaTeX CV for one job or a whole area, then accept, edit or reject each one. Optionally, write a cover letter for a specific job.
+4. **CV**: update the master CV itself: edit the LaTeX source, add a certification with a quick form, and build a PDF. Every save is checked and the previous version is backed up.
 
 All data stays on your machine in `data/`. The app sends only the text it needs to OpenRouter: CV facts without contact details, job postings, and your optional notes.
 
@@ -17,7 +18,7 @@ All data stays on your machine in `data/`. The app sends only the text it needs 
 ```
 job boards ──► normalize ──► dedupe ──► hard filters ──► Jev scoring ──► Jobs list
                                                                             │
-                         master CV (LaTeX, never modified) ◄────────────────┤
+                         master CV (LaTeX, edited only in CV tab) ◄────────────────┤
                                     │                                       │
                      writer model proposes edits ──► Jev fact check ──► review ──► tailored .tex / .pdf
                                     │
@@ -114,7 +115,7 @@ The app reads **only** `CVREFINE_OPENROUTER_API_KEY`. A machine-wide `OPENROUTER
 Put your CV in `data/cv/`:
 
 ```
-data/cv/main.tex        # moderncv source (never modified by the tool)
+data/cv/main.tex        # moderncv source (tailoring never modifies it; the CV tab does, with backups)
 data/cv/cvimage.jpeg    # any assets it uses (photo, .cls/.sty), copied next to tailored output
 ```
 
@@ -140,6 +141,11 @@ Steps:
 3. Click **Scan now**. The page refreshes while the scan runs and then shows per-source stats: fetched, matched, new, duplicates, filtered, error.
 4. **Jobs**: filter by profile, source, area or minimum score. Open a job to see the score breakdown, shortlist it, set an area, label it Good or Bad match, and click **Tailor CV** or **Write cover letter**.
 5. **Tailor**: review the edits, then **Apply accepted edits** and download `.tex` or `.pdf`.
+
+To update the master CV (new job, new certification), use the **CV** tab:
+- **Add certification**: name, period and note; inserted at the top of the section whose name contains *Certifications*.
+- **Editor**: the full `.tex` source. A save that no longer parses is refused. The previous version goes to `data/cv/history/`.
+- **Build PDF**: compiles the master to `data/cv/build/` (needs a LaTeX engine).
 
 Automatic scans run only while the app is running. A scheduler checks every 10 minutes for profiles that are due.
 
@@ -193,6 +199,7 @@ cvrefine/
   cv/tailor.py        edit proposals, fact checks, language detection
   cv/letter.py        cover letter drafting, regeneration, assembly
   cv/render.py        tailored output and PDF compile
+  cv/editor.py        master CV updates: save with backup, add certification
   templates/, static/ Jinja2 pages, no JavaScript build step
 scripts/              jev_smoke.py (live check), eval_scores.py (threshold tuning)
 tests/                pytest suite; model calls are faked

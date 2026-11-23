@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error %}<p class="error" style="white-space: pre-wrap">{{ error }}</p>{% endif %}
+{% if message %}<p class="ok">{{ message }}</p>{% endif %}
+
+<section>
+  <h2>Add certification</h2>
+  <p class="hint">Inserted at the top of the Certifications section as <code>\cventry{period}{name}{note}{}{}{}</code>. Plain text; LaTeX specials are escaped.</p>
+  <form method="post" action="/cv/certification" class="grid">
+    <label class="wide">Name<input name="name" required placeholder="HashiCorp Certified: Terraform Associate (004)"></label>
+    <label>Period<input name="period" placeholder="2026--2028"></label>
+    <label>Note<input name="note" placeholder="Obtained 20 Nov 2026"></label>
+    <button>Add</button>
+  </form>
+</section>
+
+<section>
+  <div class="row">
+    <h2>Master CV</h2>
+    <form method="post" action="/cv/pdf" class="push"><button>Build PDF</button></form>
+    {% if has_pdf %}<a href="/cv/pdf">Download PDF</a>{% endif %}
+  </div>
+  <p class="hint">Edits <code>data/cv/{{ cv_name }}</code> directly. Saving checks the file still parses and backs up the previous version to <code>data/cv/history/</code>. Tailorings proposed before a change skip edits whose text moved.</p>
+  <form method="post" action="/cv">
+    <textarea name="source" class="source" spellcheck="false">{{ source }}</textarea>
+    <p><button>Save</button></p>
+  </form>
+  {% if backups %}
+  <h3>Recent backups</h3>
+  <ul class="hint">{% for name in backups %}<li>{{ name }}</li>{% endfor %}</ul>
+  {% endif %}
+</section>
+{% endblock %}

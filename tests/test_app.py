@@ -167,3 +167,34 @@ def test_scoring_failure_is_recorded_not_raised(client, monkeypatch):
     client.post("/jobs/manual", data={"title": "Job", "description": "text"})
     assert "Scoring failed: 401 User not found." in client.get("/jobs/1").text
     assert "error" in client.get("/jobs").text
+
+
+def test_cv_editor(client, monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from cvrefine.config import settings
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    settings.cv_dir.mkdir()
+    fixture = (Path(__file__).parent / "fixtures" / "cv.tex").read_text(encoding="utf-8")
+    settings.cv_file.write_text(fixture, encoding="utf-8")
+
+    assert client.get("/cv").status_code == 200
+    missing = client.post("/cv/certification", data={"name": "X"})
+    assert "No section" in missing.text and settings.cv_file.read_text(encoding="utf-8") == fixture
+
+    master = fixture.replace("\\section{Computer Skills}", "\\section{Certifications}\n\n\\section{Computer Skills}")
+    settings.cv_file.write_text(master, encoding="utf-8")
+    response = client.post("/cv/certification", data={"name": "Terraform Associate (004)", "period": "2026--2028", "note": "R&D"}, follow_redirects=False)
+    assert response.status_code == 303
+    updated = settings.cv_file.read_text(encoding="utf-8")
+    assert "\\section{Certifications}\n\\cventry{2026--2028}{Terraform Associate (004)}{R\\&D}{}{}{}\n" in updated
+    assert len(list((settings.cv_dir / "history").glob("*.tex"))) == 1
+
+    broken = client.post("/cv", data={"source": updated + "\\cventry{oops"})
+    assert "Not saved" in broken.text
+    assert settings.cv_file.read_text(encoding="utf-8") == updated
+
+    client.post("/cv", data={"source": master})
+    assert settings.cv_file.read_text(encoding="utf-8") == master
+    assert len(list((settings.cv_dir / "history").glob("*.tex"))) == 2

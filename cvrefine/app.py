@@ -14,6 +14,7 @@ from sqlmodel import Session, select
 
 from cvrefine.config import settings
 from cvrefine.cv.parser import ParsedCV, ParseError, apply_edits, parse, validate_latex
+from cvrefine.cv import editor
 from cvrefine.cv.render import render_pdf, write_output
 from cvrefine.cv.letter import assemble as assemble_letter
 from cvrefine.cv.letter import covered_requirements, cv_name, letter_facts
@@ -386,6 +387,78 @@ def tailor(request: Request, session: SessionDep, error: str = ""):
             "error": error,
         },
     )
+
+
+# --- Master CV editor -----------------------------------------------------------
+
+
+def _cv_page(request: Request, source: str = "", error: str = "", message: str = "") -> HTMLResponse:
+    if not source and settings.cv_file.exists():
+        source = settings.cv_file.read_text(encoding="utf-8")
+    pdf = settings.cv_dir / "build" / settings.cv_file.with_suffix(".pdf").name
+    return templates.TemplateResponse(
+        request,
+        "cv.html",
+        {
+            "tab": "cv",
+            "source": source,
+            "cv_name": settings.cv_file_name,
+            "backups": [path.name for path in editor.backups()[:10]],
+            "has_pdf": pdf.exists(),
+            "error": error,
+            "message": message,
+        },
+    )
+
+
+@app.get("/cv", response_class=HTMLResponse)
+def cv_page(request: Request, message: str = ""):
+    return _cv_page(request, message=message)
+
+
+@app.post("/cv", response_class=HTMLResponse)
+def cv_save(request: Request, source: Annotated[str, Form()]):
+    try:
+        backup = editor.save_master(source)
+    except ParseError as error:
+        return _cv_page(request, source, error=f"Not saved: {error}")
+    note = f"Saved. Previous version backed up as {backup.name}." if backup else "Saved."
+    return _redirect("/cv?message=" + quote(note))
+
+
+@app.post("/cv/certification", response_class=HTMLResponse)
+def cv_add_certification(
+    request: Request,
+    name: Annotated[str, Form()] = "",
+    period: Annotated[str, Form()] = "",
+    note: Annotated[str, Form()] = "",
+):
+    try:
+        source = settings.cv_file.read_text(encoding="utf-8")
+        backup = editor.save_master(editor.add_certification(source, name, period, note))
+    except (OSError, ParseError) as error:
+        return _cv_page(request, error=f"Certification not added: {error}")
+    suffix = f" Backup: {backup.name}." if backup else ""
+    return _redirect("/cv?message=" + quote(f"Added certification '{name.strip()}'.{suffix}"))
+
+
+@app.post("/cv/pdf", response_class=HTMLResponse)
+async def cv_build_pdf(request: Request):
+    if not settings.cv_file.exists():
+        return _cv_page(request, error=f"No CV at {settings.cv_file}")
+    tex_path = write_output(settings.cv_file.read_text(encoding="utf-8"), settings.cv_dir / "build")
+    _, render_error = await run_in_threadpool(render_pdf, tex_path)
+    if render_error:
+        return _cv_page(request, error=render_error)
+    return _redirect("/cv?message=" + quote("PDF built."))
+
+
+@app.get("/cv/pdf")
+def cv_download_pdf():
+    pdf = settings.cv_dir / "build" / settings.cv_file.with_suffix(".pdf").name
+    if not pdf.exists():
+        raise HTTPException(404, "No PDF built yet")
+    return FileResponse(pdf, filename=pdf.name)
 
 
 def _area_jobs(session: Session, area: str) -> list[Job]:
