@@ -198,3 +198,45 @@ def test_cv_editor(client, monkeypatch, tmp_path):
     client.post("/cv", data={"source": master})
     assert settings.cv_file.read_text(encoding="utf-8") == master
     assert len(list((settings.cv_dir / "history").glob("*.tex"))) == 2
+
+
+def test_cv_work_experience(client, monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from cvrefine.config import settings
+    from cvrefine.cv import editor
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    settings.cv_dir.mkdir()
+    master = (Path(__file__).parent / "fixtures" / "cv.tex").read_text(encoding="utf-8")
+    settings.cv_file.write_text(master, encoding="utf-8")
+
+    jobs = editor.ongoing_jobs(master)
+    assert [job["period"] for job in jobs] == ["2022--Now"]  # commented-out entry ignored
+    page = client.get("/cv").text
+    assert "Cloud Developer - Acme" in page
+
+    stale = client.post("/cv/job/end", data={"offset": jobs[0]["offset"] + 1, "period": "2022--Now", "end": "2026"})
+    assert "Job not ended" in stale.text and settings.cv_file.read_text(encoding="utf-8") == master
+
+    client.post("/cv/job/end", data={"offset": jobs[0]["offset"], "period": "2022--Now", "end": "2026"})
+    updated = settings.cv_file.read_text(encoding="utf-8")
+    assert "\\cventry{2022--2026}{Cloud Developer}{Acme}" in updated
+    assert editor.ongoing_jobs(updated) == []
+
+    client.post("/cv/job", data={"period": "2026--Now", "title": "Platform Engineer", "employer": "Beta & Co", "city": "Milan", "description": "Terraform\n\nAWS, 50% less toil"})
+    updated = settings.cv_file.read_text(encoding="utf-8")
+    assert "\\section{Work Experience}\n\\cventry{2026--Now}{Platform Engineer}{Beta \\& Co}{Milan}{}{Terraform AWS, 50\\% less toil}\n" in updated
+    assert [job["label"] for job in editor.ongoing_jobs(updated)] == ["Platform Engineer - Beta \\& Co"]
+    assert len(list((settings.cv_dir / "history").glob("*.tex"))) == 2
+
+
+def test_ongoing_period_forms():
+    from cvrefine.cv import editor
+
+    for period, ongoing in [("2022--Now", True), ("2022 -- Present", True), ("2022--", True), ("Mar 2022 – oggi", True), ("2022--2026", False), ("2022", False)]:
+        source = f"\\section{{Experience}}\n\\cventry{{{period}}}{{T}}{{E}}{{}}{{}}{{D}}\n"
+        assert bool(editor.ongoing_jobs(source)) is ongoing, period
+    source = "\\section{Experience}\n\\cventry{2022 -- Present}{T}{E}{}{}{D}\n"
+    job = editor.ongoing_jobs(source)[0]
+    assert "\\cventry{2022--2026}" in editor.end_job(source, job["offset"], job["period"], "2026")

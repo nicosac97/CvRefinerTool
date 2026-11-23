@@ -4,6 +4,32 @@
 {% if message %}<p class="ok">{{ message }}</p>{% endif %}
 
 <section>
+  <h2>Work experience</h2>
+  <h3>Ongoing jobs</h3>
+  {% for job in ongoing %}
+  <form method="post" action="/cv/job/end" class="row card">
+    <input type="hidden" name="offset" value="{{ job.offset }}">
+    <input type="hidden" name="period" value="{{ job.period }}">
+    <span>{{ job.label }} <span class="badge">{{ job.period }}</span></span>
+    <label class="inline push">End<input name="end" value="{{ this_year }}" required style="width: 9em"></label>
+    <button>End job</button>
+  </form>
+  {% else %}
+  <p class="hint">None. A job is ongoing when its period ends with a dash or a word like Now/Present (e.g. <code>2022--Now</code>).</p>
+  {% endfor %}
+  <h3>Add job</h3>
+  <p class="hint">Inserted at the top of the experience section as <code>\cventry{period}{title}{employer}{city}{}{description}</code>. Plain text; LaTeX specials are escaped. Use <code>2026--Now</code> for a current job.</p>
+  <form method="post" action="/cv/job" class="grid">
+    <label>Period<input name="period" required placeholder="{{ this_year }}--Now"></label>
+    <label>Job title<input name="title" required placeholder="Cloud Engineer"></label>
+    <label>Employer<input name="employer" placeholder="Company"></label>
+    <label>City<input name="city" placeholder="Milan"></label>
+    <label class="wide">Description<textarea name="description" rows="4" placeholder="What you did, stack, results"></textarea></label>
+    <button>Add job</button>
+  </form>
+</section>
+
+<section>
   <h2>Add certification</h2>
   <p class="hint">Inserted at the top of the Certifications section as <code>\cventry{period}{name}{note}{}{}{}</code>. Plain text; LaTeX specials are escaped.</p>
   <form method="post" action="/cv/certification" class="grid">

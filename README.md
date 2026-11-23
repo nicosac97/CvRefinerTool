@@ -7,7 +7,7 @@ It runs locally as a small web app with four tabs:
 1. **Monitor**: save search criteria, scan job boards, and score every new posting against your profile.
 2. **Jobs**: browse ranked results, shortlist or dismiss them, group them into "areas", and label good or bad matches.
 3. **Tailor**: get proposed edits to your LaTeX CV for one job or a whole area, then accept, edit or reject each one. Optionally, write a cover letter for a specific job.
-4. **CV**: update the master CV itself: edit the LaTeX source, add a certification with a quick form, and build a PDF. Every save is checked and the previous version is backed up.
+4. **CV**: update the master CV itself: end a current job or add a new one, add a certification, edit the LaTeX source, and build a PDF. Every save is checked and the previous version is backed up.
 
 All data stays on your machine in `data/`. The app sends only the text it needs to OpenRouter: CV facts without contact details, job postings, and your optional notes.
 
@@ -143,9 +143,13 @@ Steps:
 5. **Tailor**: review the edits, then **Apply accepted edits** and download `.tex` or `.pdf`.
 
 To update the master CV (new job, new certification), use the **CV** tab:
+- **Ongoing jobs**: work entries whose period has no end yet (`2022--Now`, `2022 -- Present`, `2022--`, also *Current*, *oggi*). Type an end date and click **End job**: `2022--Now` becomes `2022--2026`. If the file changed since the page loaded, nothing is edited.
+- **Add job**: period, title, employer, city and description; inserted at the top of the section whose name contains *Experience*, *Work* or *Employment*. Use `2026--Now` for a current job. The description is kept on one line, since a blank line inside `\cventry` breaks LaTeX.
 - **Add certification**: name, period and note; inserted at the top of the section whose name contains *Certifications*.
 - **Editor**: the full `.tex` source. A save that no longer parses is refused. The previous version goes to `data/cv/history/`.
 - **Build PDF**: compiles the master to `data/cv/build/` (needs a LaTeX engine).
+
+The form fields take plain text: `&`, `%`, `_`, `#` and `$` are escaped for you. Every change, from a form or the editor, backs up the previous file first.
 
 Automatic scans run only while the app is running. A scheduler checks every 10 minutes for profiles that are due.
 
@@ -199,7 +203,7 @@ cvrefine/
   cv/tailor.py        edit proposals, fact checks, language detection
   cv/letter.py        cover letter drafting, regeneration, assembly
   cv/render.py        tailored output and PDF compile
-  cv/editor.py        master CV updates: save with backup, add certification
+  cv/editor.py        master CV updates: save with backup, end/add jobs, add certification
   templates/, static/ Jinja2 pages, no JavaScript build step
 scripts/              jev_smoke.py (live check), eval_scores.py (threshold tuning)
 tests/                pytest suite; model calls are faked

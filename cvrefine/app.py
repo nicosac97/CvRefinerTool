@@ -393,8 +393,8 @@ def tailor(request: Request, session: SessionDep, error: str = ""):
 
 
 def _cv_page(request: Request, source: str = "", error: str = "", message: str = "") -> HTMLResponse:
-    if not source and settings.cv_file.exists():
-        source = settings.cv_file.read_text(encoding="utf-8")
+    saved = settings.cv_file.read_text(encoding="utf-8") if settings.cv_file.exists() else ""
+    source = source or saved
     pdf = settings.cv_dir / "build" / settings.cv_file.with_suffix(".pdf").name
     return templates.TemplateResponse(
         request,
@@ -405,10 +405,19 @@ def _cv_page(request: Request, source: str = "", error: str = "", message: str =
             "cv_name": settings.cv_file_name,
             "backups": [path.name for path in editor.backups()[:10]],
             "has_pdf": pdf.exists(),
+            "ongoing": _ongoing_jobs(saved),  # offsets must match the file on disk, not an unsaved draft
+            "this_year": datetime.now().year,
             "error": error,
             "message": message,
         },
     )
+
+
+def _ongoing_jobs(source: str) -> list[dict]:
+    try:
+        return editor.ongoing_jobs(source)
+    except ParseError:
+        return []
 
 
 @app.get("/cv", response_class=HTMLResponse)
@@ -440,6 +449,40 @@ def cv_add_certification(
         return _cv_page(request, error=f"Certification not added: {error}")
     suffix = f" Backup: {backup.name}." if backup else ""
     return _redirect("/cv?message=" + quote(f"Added certification '{name.strip()}'.{suffix}"))
+
+
+@app.post("/cv/job/end", response_class=HTMLResponse)
+def cv_end_job(
+    request: Request,
+    offset: Annotated[int, Form()],
+    period: Annotated[str, Form()],
+    end: Annotated[str, Form()] = "",
+):
+    try:
+        source = settings.cv_file.read_text(encoding="utf-8")
+        backup = editor.save_master(editor.end_job(source, offset, period, end))
+    except (OSError, ParseError) as error:
+        return _cv_page(request, error=f"Job not ended: {error}")
+    suffix = f" Backup: {backup.name}." if backup else ""
+    return _redirect("/cv?message=" + quote(f"Job ended ({end.strip()}).{suffix}"))
+
+
+@app.post("/cv/job", response_class=HTMLResponse)
+def cv_add_job(
+    request: Request,
+    period: Annotated[str, Form()] = "",
+    title: Annotated[str, Form()] = "",
+    employer: Annotated[str, Form()] = "",
+    city: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+):
+    try:
+        source = settings.cv_file.read_text(encoding="utf-8")
+        backup = editor.save_master(editor.add_job(source, period, title, employer, city, description))
+    except (OSError, ParseError) as error:
+        return _cv_page(request, error=f"Job not added: {error}")
+    suffix = f" Backup: {backup.name}." if backup else ""
+    return _redirect("/cv?message=" + quote(f"Added job '{title.strip()}'.{suffix}"))
 
 
 @app.post("/cv/pdf", response_class=HTMLResponse)
